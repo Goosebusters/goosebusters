@@ -7,8 +7,11 @@ Team members:
 
 Directory structure (TBA):
 -- cv
+
 |_ arduino
+
 |_ sim
+
 
 To add:
 - Gantt chart?
