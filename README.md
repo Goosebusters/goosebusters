@@ -5,3 +5,5 @@ ESC472 Capstone Project for Engineering Science - Electrical and Computer Engine
 Team members:
 - Susan, Connor, Jeff, Maliha
 
+To add:
+- Gantt chart?
