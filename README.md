@@ -5,5 +5,10 @@ ESC472 Capstone Project for Engineering Science - Electrical and Computer Engine
 Team members:
 - Susan, Connor, Jeff, Maliha
 
+Directory structure (TBA):
+-- cv
+|_ arduino
+|_ sim
+
 To add:
 - Gantt chart?
