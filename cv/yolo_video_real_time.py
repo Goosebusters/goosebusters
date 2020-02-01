@@ -83,6 +83,8 @@ writer = None
 # 	print("[INFO] no approx. completion time can be provided")
 # 	total = -1
 
+BIRD_CLASS_ID = 14
+
 # loop over frames from the video file stream
 while True:
 	# read the next frame from the file
@@ -128,7 +130,7 @@ while True:
 
 			# filter out weak predictions by ensuring the detected
 			# probability is greater than the minimum probability
-			if confidence > args["confidence"]:
+			if confidence > args["confidence"] and classID == BIRD_CLASS_ID:
 				# scale the bounding box coordinates back relative to
 				# the size of the image, keeping in mind that YOLO
 				# actually returns the center (x, y)-coordinates of
@@ -172,8 +174,8 @@ while True:
 			center = (centerX, centerY)
 			cv2.circle(frame, center, 5, (0, 0, 255), -1)
 
-	# update the points queue
-	pts.appendleft(center)
+			# update the points queue
+			pts.appendleft(center)
 
 	# loop over the set of tracked points
 	for i in range(1, len(pts)):
