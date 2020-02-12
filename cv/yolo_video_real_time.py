@@ -1,3 +1,4 @@
+
 # USAGE
 # python yolo_video_real_time.py --video videos/airport.mp4 --yolo yolo-coco 
 # or
@@ -67,6 +68,7 @@ time.sleep(2.0)
 # frame dimensions
 writer = None
 (W, H) = (None, None)
+center = (0, 0)
 
 # Not necessary for real-time detection
 # # try to determine the total number of frames in the video file
@@ -174,8 +176,8 @@ while True:
 			center = (centerX, centerY)
 			cv2.circle(frame, center, 5, (0, 0, 255), -1)
 
-			# update the points queue
-			pts.appendleft(center)
+	# update the points queue
+	pts.appendleft(center)
 
 	# loop over the set of tracked points
 	for i in range(1, len(pts)):
