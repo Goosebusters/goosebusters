@@ -1,0 +1,6 @@
+classes=1
+train=./data/goose_800img.txt
+valid=./data/goose_200img.txt
+names=data/goose.names
+backup=backup/
+eval=coco
