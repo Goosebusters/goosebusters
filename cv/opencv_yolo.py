@@ -57,6 +57,11 @@ else:
 writer = None
 (W, H) = (None, None)
 
+# define the lower and upper boundaries of the "red"
+# boundaries in the HSV color space
+redLower = (81, 102, 40)
+redUpper = (253, 255, 87)
+
 # initialize the two classes we care about
 BIRD_CLASS_ID = 14
 PERSON_CLASS_ID = 0
@@ -107,6 +112,34 @@ while True:
     frame = imutils.resize(frame, width=500)
     (H, W) = frame.shape[:2]
 
+    # blur the frame and convert it to the HSV color space
+    blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+    hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+
+    # construct a mask for the color "red", then perform
+	# a series of dilations and erosions to remove any small
+	# blobs left in the mask
+    mask = cv2.inRange(hsv, redLower, redUpper)
+    mask = cv2.erode(mask, None, iterations=2)
+    mask = cv2.dilate(mask, None, iterations=2)
+
+    # find contours in the mask and initialize the current
+	# (x, y) center of the red boundary
+    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+    boundaryCenter = None
+
+    # only proceed if at least one contour was found
+    if len(cnts) > 0:
+        # find the largest contour in the mask, then use
+        # it to compute the minimum enclosing circle and
+        # centroid
+        c = max(cnts, key=cv2.contourArea)
+        ((x, y), radius) = cv2.minEnclosingCircle(c)
+        M = cv2.moments(c)
+        boundaryCenter = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+        print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
+
     # check to see if we are currently tracking an object
     if initBB is not None:
         # grab the new bounding box coordinates of the object
@@ -118,23 +151,26 @@ while True:
             cv2.rectangle(frame, (x, y), (x + w, y + h),
                           (0, 255, 0), 2)
 
-        # update the FPS counter
-        fps.update()
-        fps.stop()
+            # update the FPS counter
+            fps.update()
+            fps.stop()
 
-        # initialize the set of information we'll be displaying on
-        # the frame
-        info = [
-            ("Tracker", args["tracker"]),
-            ("Success", "Yes" if success else "No"),
-            ("FPS", "{:.2f}".format(fps.fps())),
-        ]
+            # initialize the set of information we'll be displaying on
+            # the frame
+            info = [
+                ("Tracker", args["tracker"]),
+                ("Success", "Yes" if success else "No"),
+                ("FPS", "{:.2f}".format(fps.fps())),
+            ]
 
-        # loop over the info tuples and draw them on our frame
-        for (i, (k, v)) in enumerate(info):
-            text = "{}: {}".format(k, v)
-            cv2.putText(frame, text, (10, H - ((i * 20) + 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            # loop over the info tuples and draw them on our frame
+            for (i, (k, v)) in enumerate(info):
+                text = "{}: {}".format(k, v)
+                cv2.putText(frame, text, (10, H - ((i * 20) + 20)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+        else:
+            initBB = None
 
     # show the output frame
     cv2.imshow("Frame", frame)
