@@ -1,4 +1,5 @@
 # Opens a window with the USB webcam feed through terminal
+# Connor- adding one comment for fun :) 
 from imutils.video import VideoStream
 
 import numpy as np
