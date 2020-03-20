@@ -17,6 +17,7 @@ import serial
 import math
 
 
+
 def initialize_serial(ser):
     while (ser.isOpen()!=1):
         try:
@@ -29,94 +30,10 @@ def initialize_serial(ser):
             ser.close()
             #print("Timeout exception raised in initialize_serial()")
     return ser
-    
-def scan_camera(ser, t_pan):
-    #if scanning mode, rotate slowly to new position. 
-    #accrued_pan is a variable that accumulates and...
-    #...lets us know when we should reverse the pan direction. 
-    #desired speed changes when accrued pan reaches +/- 90deg. 
-    #global variables: u_prev, accrued_pan, t_continue. 
-    
-    #start in the direction with greatest margin. 
-    desired_speed = 0
-    if accrued_pan < 0:
-        desired_speed = 102
-    else:
-        desired_speed = 88
-    accrued_pan += u_prev*((GS_timing.millis()-t_continue)/1000)
-    t_scan=GS_timing.millis()
-    t_start_inc = GS_timing.millis()
-    #write these regardless of overshoot. 
-    increments = smooth_u(desired_speed, u_prev)
-    for speed in increments:
-        try:
-            #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-            ser.write(str.encode(str(convert_degS_code(speed,error)) + '\n'))
-            #time.sleep(T_sample)
-        except (OSError, serial.SerialException):
-            #print("Serial Exception Raised")
-            ser.close()
-            ser = initialize_serial(ser)
-        except (OSError, serial.SerialTimeoutException):
-            #print("Serial Timeour Exception Raised")
-            ser.close()
-            ser = initialize_serial(ser)
-        accrued_pan += u_prev*((GS_timing.millis()-t_scan)/1000)
-        t_scan = GS_timing.millis()
-        u_prev = speed
-        while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
-            accrued_pan += speed*((GS_timing.millis()-t_scan)/1000)
-            t_scan = GS_timing.millis()
-          pass #do nothing
-    
-    while (GS_timing.millis() - t_start_inc < t_pan*1000):
-        accrued_pan += u_prev*((GS_timing.millis()-t_scan)/1000)
-        t_scan = GS_timing.millis()
-        if abs(accrued_pan) >= 90:
-            desired_speed = flip_direction(desired_speed)
-            u_prev = desired_speed
-        try:
-            #argument of 1.5 should keep LED off. 
-            ser.write(str.encode(str(convert_degS_code(desired_speed,1.5)) + '\n'))
-            #time.sleep(T_sample)
-        except (OSError, serial.SerialException):
-            #print("Serial Exception Raised")
-            ser.close()
-            ser = initialize_serial(ser)
-        except (OSError, serial.SerialTimeoutException):
-            #print("Serial Timeour Exception Raised")
-            ser.close()
-            ser = initialize_serial(ser)
-    #set final speed to zero and return. 
-    try:
-        ser.write(str.encode(str(convert_degS_code(0,1.5)) + '\n'))
-        #time.sleep(T_sample)
-    except (OSError, serial.SerialException):
-        #print("Serial Exception Raised")
-        ser.close()
-        ser = initialize_serial(ser)
-    except (OSError, serial.SerialTimeoutException):
-        #print("Serial Timeour Exception Raised")
-        ser.close()
-        ser = initialize_serial(ser)
-    accrued_pan += u_prev*((GS_timing.millis()-t_scan)/1000)
-    u_prev = 0
-    t_continue=GS_timing.millis()
-    return ser
-        
-    
-def flip_direction(speed):
-    #may need to be hardcoded. 
-    if speed > 95:
-        return 88
-    else:
-        return 102
-    
-    
+
 def convert_degS_code(degS, error):
     #input is radial speed e (-250,250)deg/s
     #output is digital code between (65, 125) OR (135, 195)
-    #70*np.heaviside() specifies if LED is on/off. 
     if degS<=-1:
         return int(degS*(25/250) + 90 + 70*np.heaviside(1-abs(error), 0))
     elif degS>=1:
@@ -124,7 +41,6 @@ def convert_degS_code(degS, error):
     else:
         #map rotation code less than 1 degS to 0. 
         return 95
-        
 def smooth_u(u, u_prev):
     #we don't want to feed very sharp transitions into the motor.
     #increments of 5deg. are desirable.
@@ -136,7 +52,7 @@ def smooth_u(u, u_prev):
     else:
         return [u]
 #initialize the serial port to Arduino COM!!!!!!!
-ser = serial.Serial('COM5', 115200)
+'''ser = serial.Serial('COM5', 115200)'''
 
 
 ##
@@ -187,52 +103,52 @@ u_int = 0
 
 def update(error, type):
     global T, u, u_int, w1_hat, w2_hat, x_hat
-    
+
     T += T_sample
     e = error
-    
+
     if type == 'const':
-        
+
         u = K1 * e
-    
+
     elif type == 'exo':
-        
+
         u_int += u*T_sample
-        
+
         e_hat = C*B*u_int - (R[0]*w1_hat + R[1]*w1_hat)
-        
+
         w1_hat_dot = S[0][0]*w1_hat + S[0][1]*w2_hat + L1[0][0]*(e-e_hat)
         w2_hat_dot = S[1][0]*w1_hat + S[0][1]*w2_hat + L1[1][0]*(e-e_hat)
-        
+
         w1_hat += w1_hat_dot*T_sample
         w2_hat += w2_hat_dot*T_sample
-        
+
         u = K1*e + K2[0]*w1_hat + K2[1]*w2_hat
-        
+
     elif type == 'exo2':
-        
+
         e_hat = C*x_hat - (R[0]*w1_hat + R[1]*w1_hat)
-        
+
         w1_hat_dot = S[0][0]*w1_hat + S[0][1]*w2_hat + L1[0][0]*(e-e_hat)
         w2_hat_dot = S[1][0]*w1_hat + S[0][1]*w2_hat + L1[1][0]*(e-e_hat)
-        
+
         x_hat_dot = B*u + L2*(e-e_hat)
-        
+
         w1_hat += w1_hat_dot*T_sample
         w2_hat += w2_hat_dot*T_sample
-        
+
         x_hat += x_hat_dot*T_sample
-        
+
         u = K1*e + K2[0]*w1_hat + K2[1]*w2_hat
-        
+
     else:
         print('Invalid type')
         return
-    
+
     #saturation at 0.7 rot/s. u given in deg/s
     if abs(u) > 0.7*360:
         u = 0.7*360 * u/abs(u)
-    
+
     #print('x_hat: '+str(x_hat))
     return u
 
@@ -317,29 +233,11 @@ else:
 # initialize the FPS throughput estimator
 fps = None
 
-#store previous value of u. 
-#in particular, store the final write speed before the program continues.
-global u_prev=0    
-#record this value whenever u_prev is updated. 
-global t_continue = 0
+#store previous value of u.
+u_prev=0    
 # loop over frames from the video stream
 i = 0
-#set SCANNING indicator
-scanning = 1
-
-#represents rotation of motor in degrees. Update rule:
-#accrued_pan += angular_speed(deg/s)*time(s)*1.05
-#needs to stay within +/- 90 for scanning mode. 
-#include tolerance for error(i.e. *1.05)
-#assume under normal operation this variable will remain within +/- 90
-global accrued_pan = 0
-
 while True:
-    if scanning == 1:
-        #this will rotate the camera at slowest speed for given amt. of time. 
-        #once the camera stops, then the object recognition algo. should execute. 
-        ser = scan_camera(ser, 10e-3)
-        
     t_start = GS_timing.millis()
     # grab the current frame, then handle if we are using a
     # VideoStream or VideoCapture object
@@ -371,7 +269,7 @@ while True:
             # update the FPS counter
             fps.update()
             fps.stop()
-    
+
             # initialize the set of information we'll be displaying on
             # the frame
             info = [
@@ -379,7 +277,7 @@ while True:
                 ("Success", "Yes" if success else "No"),
                 ("FPS", "{:.2f}".format(fps.fps())),
             ]
-    
+
             # loop over the info tuples and draw them on our frame
             for (i, (k, v)) in enumerate(info):
                 text = "{}: {}".format(k, v)
@@ -387,27 +285,25 @@ while True:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         else:
             initBB = None
-            #RETURN TO SCANNING MODE
-            scanning = 1
-                        
+
     # show the output frame
     cv2.imshow("Frame", frame)
     key = cv2.waitKey(1) & 0xFF
     #continue
 
     if not initBB or not success:
-        
+
         # construct a blob from the input frame and then perform a forward
         # pass of the YOLO object detector, giving us our bounding boxes
         # and associated probabilities
         blob = cv2.dnn.blobFromImage(
             frame, 1 / 255.0, (416, 416), swapRB=True, crop=False)
         net.setInput(blob)
-        
+
         #t0 = time.time()
         layerOutputs = net.forward(ln)
         #print(time.time()-t0)
-        
+
         # initialize our lists of detected bounding boxes, confidences,
         # and class IDs, respectively
         boxes = []
@@ -446,7 +342,7 @@ while True:
                     boxes.append([x, y, int(width), int(height)])
                     confidences.append(float(confidence))
                     classIDs.append(classID)
-        
+
         # apply non-maxima suppression to suppress weak, overlapping
         # bounding boxes
         idxs = cv2.dnn.NMSBoxes(
@@ -479,35 +375,28 @@ while True:
                     tracker.init(frame, initBB)
                     fps = FPS().start()
                     #print('BIRD')
-                    #SWITCH FROM TRACKING <-- SCANNING. 
-                    scanning = 0
                 else:
                     print("Human detected!\n")
 
         # if the `q` key was pressed, break from the loop
     if key == ord("q"):
         break
-    
+
     #Control
 
     if initBB is None:
         error = 0
         u = 0
         print('nothing detected')
-        #RETURN TO SCANNING MODE
-        scanning = 1
     else:
         error = 0.09 * (249.5-coord)
         u = update(error, 'exo2')
         #print('Detected')
-        
     #uncomment this for servo motor
-    
+    '''
     increments=smooth_u(u, u_prev)
-    #write rotation that has accumulated since previous iteration. 
-    accrued_pan+=u_prev*((t_start_inc-t_continue)/1000)
+    u_prev = u
     for speed in increments:
-        u_prev = speed
         t_start_inc=GS_timing.millis()
         #write out speeds in increments. 
         try:
@@ -522,25 +411,15 @@ while True:
             #print("Serial Timeour Exception Raised")
             ser.close()
             ser = initialize_serial(ser)
-        accrued_pan += speed*((GS_timing.millis()-t_start_inc)/1000)
-        t_write = GS_timing.millis()
         while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
-            accrued_pan += speed*((GS_timing.millis()-t_write)/1000)
-            t_write = GS_timing.millis()
           pass #do nothing 
-          
-    t_hold = GS_timing.millis() 
     
+    '''    
+    #print(round(coord, 4), round(error, 4), round(u, 4))
+
     while (GS_timing.millis() - t_start < T_sample * 1000):
-        # THESE EXPRESSIONS COULD BE BROUGHT OUTSIDE THE LOOP. 
-        accrued_pan += u_prev*((GS_timing.millis()-t_hold)/1000)
-        t_hold = GS_timing.millis() 
         pass #do nothing 
-    
-    t_continue = GS_timing.millis()
-    
-    
-    
+
 # if we are using a webcam, release the pointer
 if not args.get("video", False):
     vs.stop()
@@ -550,4 +429,4 @@ else:
     vs.release()
 
 # close all windows
-cv2.destroyAllWindows()
+cv2.destroyAllWindows() 
