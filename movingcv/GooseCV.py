@@ -1,8 +1,7 @@
 # USAGE
-# RUN THE LINE BELOW
 # python GooseCV.py --yolo yolo-coco
-
-#CHANGE LINE 195, 225 for WEBCAM, LINE 24 for COM, LINE56 for COM
+# python opencv_yolo.py --video dashcam_boston.mp4 --tracker csrt --yolo yolo-coco
+# CHANGE LINE 195, 225 for WEBCAM, LINE 24 for COM, LINE56 for COM  <--- this is outdated
 # import the necessary packages
 import os
 import numpy as np
@@ -17,11 +16,12 @@ import serial
 import math
 
 
+
 def initialize_serial(ser):
     while (ser.isOpen()!=1):
         try:
             ser.close()
-            ser = serial.Serial('COM5', 115200)
+            ser = serial.Serial('COM3', 115200)
         except (OSError, serial.SerialException):
             #print("Exception raised in initialize_serial()")
             ser.close()
@@ -31,6 +31,7 @@ def initialize_serial(ser):
     return ser
     
 def scan_camera(ser, t_pan):
+    global u_prev, t_continue, accrued_pan
     #if scanning mode, rotate slowly to new position. 
     #accrued_pan is a variable that accumulates and...
     #...lets us know when we should reverse the pan direction. 
@@ -40,9 +41,9 @@ def scan_camera(ser, t_pan):
     #start in the direction with greatest margin. 
     desired_speed = 0
     if accrued_pan < 0:
-        desired_speed = 102
+        desired_speed = 120
     else:
-        desired_speed = 88
+        desired_speed = 70
     accrued_pan += u_prev*((GS_timing.millis()-t_continue)/1000)
     t_scan=GS_timing.millis()
     t_start_inc = GS_timing.millis()
@@ -51,7 +52,7 @@ def scan_camera(ser, t_pan):
     for speed in increments:
         try:
             #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-            ser.write(str.encode(str(convert_degS_code(speed,error)) + '\n'))
+            ser.write(str.encode(str(convert_degS_code(speed,1.5)) + '\n'))
             #time.sleep(T_sample)
         except (OSError, serial.SerialException):
             #print("Serial Exception Raised")
@@ -67,12 +68,13 @@ def scan_camera(ser, t_pan):
         while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
             accrued_pan += speed*((GS_timing.millis()-t_scan)/1000)
             t_scan = GS_timing.millis()
-          pass #do nothing
+            pass #do nothing
     
     while (GS_timing.millis() - t_start_inc < t_pan*1000):
         accrued_pan += u_prev*((GS_timing.millis()-t_scan)/1000)
         t_scan = GS_timing.millis()
         if abs(accrued_pan) >= 90:
+            print("LINE 77")
             desired_speed = flip_direction(desired_speed)
             u_prev = desired_speed
         try:
@@ -108,15 +110,13 @@ def scan_camera(ser, t_pan):
 def flip_direction(speed):
     #may need to be hardcoded. 
     if speed > 95:
-        return 88
+        return 70
     else:
-        return 102
-    
-    
+        return 120
+
 def convert_degS_code(degS, error):
     #input is radial speed e (-250,250)deg/s
     #output is digital code between (65, 125) OR (135, 195)
-    #70*np.heaviside() specifies if LED is on/off. 
     if degS<=-1:
         return int(degS*(25/250) + 90 + 70*np.heaviside(1-abs(error), 0))
     elif degS>=1:
@@ -124,7 +124,6 @@ def convert_degS_code(degS, error):
     else:
         #map rotation code less than 1 degS to 0. 
         return 95
-        
 def smooth_u(u, u_prev):
     #we don't want to feed very sharp transitions into the motor.
     #increments of 5deg. are desirable.
@@ -136,12 +135,12 @@ def smooth_u(u, u_prev):
     else:
         return [u]
 #initialize the serial port to Arduino COM!!!!!!!
-ser = serial.Serial('COM5', 115200)
+ser = serial.Serial('COM3', 115200)
 
 
 ##
 #sample time
-T_sample = 0.02
+T_sample = 0.1
 T_sample_inc = 0.001
 T = 0
 
@@ -319,9 +318,9 @@ fps = None
 
 #store previous value of u. 
 #in particular, store the final write speed before the program continues.
-global u_prev=0    
+u_prev = 0    
 #record this value whenever u_prev is updated. 
-global t_continue = 0
+t_continue = 0
 # loop over frames from the video stream
 i = 0
 #set SCANNING indicator
@@ -332,14 +331,15 @@ scanning = 1
 #needs to stay within +/- 90 for scanning mode. 
 #include tolerance for error(i.e. *1.05)
 #assume under normal operation this variable will remain within +/- 90
-global accrued_pan = 0
+accrued_pan = 0
+
+coord = 0
 
 while True:
     if scanning == 1:
         #this will rotate the camera at slowest speed for given amt. of time. 
         #once the camera stops, then the object recognition algo. should execute. 
-        ser = scan_camera(ser, 10e-3)
-        
+        ser = scan_camera(ser, 0.1)
     t_start = GS_timing.millis()
     # grab the current frame, then handle if we are using a
     # VideoStream or VideoCapture object
@@ -349,24 +349,29 @@ while True:
 
     # check to see if we have reached the end of the stream
     if frame is None:
+        print('end of stream')
         break
 
     # resize the frame (so we can process it faster) and grab the
     # frame dimensions
-    frame = imutils.resize(frame, width=500)
+    frame = imutils.rotate_bound(frame, 90)
+    frame = imutils.resize(frame, height=500)
     (H, W) = frame.shape[:2]
-    coord = 249.5
+    frame_centre = W/2
+    
+    
     # check to see if we are currently tracking an object
     if initBB is not None:
         # grab the new bounding box coordinates of the object
         (success, box) = tracker.update(frame)
-
         # check to see if the tracking was a success
         if success:
             (x, y, w, h) = [int(v) for v in box]
             cv2.rectangle(frame, (x, y), (x + w, y + h),
                           (0, 255, 0), 2)
+            #get x coord of goose
             coord = x + w/2
+            print(coord)
             #print(x, y, w, h)
             # update the FPS counter
             fps.update()
@@ -387,8 +392,6 @@ while True:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         else:
             initBB = None
-            #RETURN TO SCANNING MODE
-            scanning = 1
                         
     # show the output frame
     cv2.imshow("Frame", frame)
@@ -497,14 +500,15 @@ while True:
         #RETURN TO SCANNING MODE
         scanning = 1
     else:
-        error = 0.09 * (249.5-coord)
-        u = update(error, 'exo2')
+        error = 0.09 * (frame_centre - coord)
+        u = update(error, 'const')
         #print('Detected')
         
     #uncomment this for servo motor
     
     increments=smooth_u(u, u_prev)
-    #write rotation that has accumulated since previous iteration. 
+    #write rotation that has accumulated since previous iteration.
+    t_start_inc=GS_timing.millis()
     accrued_pan+=u_prev*((t_start_inc-t_continue)/1000)
     for speed in increments:
         u_prev = speed
@@ -527,20 +531,20 @@ while True:
         while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
             accrued_pan += speed*((GS_timing.millis()-t_write)/1000)
             t_write = GS_timing.millis()
-          pass #do nothing 
+            pass #do nothing 
           
+    #print(round(coord, 4), round(error, 4), round(u, 4))
+    
     t_hold = GS_timing.millis() 
     
     while (GS_timing.millis() - t_start < T_sample * 1000):
-        # THESE EXPRESSIONS COULD BE BROUGHT OUTSIDE THE LOOP. 
-        accrued_pan += u_prev*((GS_timing.millis()-t_hold)/1000)
-        t_hold = GS_timing.millis() 
         pass #do nothing 
+        
+    accrued_pan += u_prev*((GS_timing.millis()-t_hold)/1000)
+    print(accrued_pan)
     
     t_continue = GS_timing.millis()
-    
-    
-    
+
 # if we are using a webcam, release the pointer
 if not args.get("video", False):
     vs.stop()
