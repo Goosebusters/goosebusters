@@ -117,15 +117,16 @@ while True:
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
     # construct a mask for the color "red", then perform
-	# a series of dilations and erosions to remove any small
-	# blobs left in the mask
+    # a series of dilations and erosions to remove any small
+    # blobs left in the mask
     mask = cv2.inRange(hsv, redLower, redUpper)
     mask = cv2.erode(mask, None, iterations=2)
     mask = cv2.dilate(mask, None, iterations=2)
 
     # find contours in the mask and initialize the current
-	# (x, y) center of the red boundary
-    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # (x, y) center of the red boundary
+    cnts = cv2.findContours(
+        mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cnts = imutils.grab_contours(cnts)
     boundaryCenter = None
 
@@ -138,7 +139,7 @@ while True:
         ((x, y), radius) = cv2.minEnclosingCircle(c)
         M = cv2.moments(c)
         boundaryCenter = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-        print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
+        # print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
 
     # check to see if we are currently tracking an object
     if initBB is not None:
