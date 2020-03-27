@@ -59,8 +59,8 @@ writer = None
 
 # define the lower and upper boundaries of the "red"
 # boundaries in the HSV color space
-redLower = (0, 163, 148)
-redUpper = (48, 255, 255)
+redLower = (157, 33, 142)
+redUpper = (224, 255, 255)
 
 # initialize the two classes we care about
 BIRD_CLASS_ID = 14
