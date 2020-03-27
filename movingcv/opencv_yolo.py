@@ -22,10 +22,12 @@ ser = serial.Serial('COM3', 115200)
 
 def switchDirection(ser):
     #may need to be hardcoded.
-    global u_scan, u_prev, T_sample_inc, error
-    u_scan = u_scan*(-1)
-    u = u_prev*(-1)
-    
+    global u_scan, u_prev_nz, T_sample_inc, error
+    #u_scan = u_scan*(-1)
+    u = u_prev_nz*(-1)
+    if np.sign(u_scan) != np.sign(u):
+        u_scan = u_scan*-1
+            
     
     #t_start_inc=GS_timing.millis()
     #write out speeds in increments. 
@@ -49,9 +51,9 @@ def switchDirection(ser):
     return ser
     
 def scanStop(ser, t_pan):	
-    global u_scan, u_prev, T_sample_inc	
+    global u_scan, u_prev, u_prev_nz, T_sample
     t_scan = GS_timing.millis()
-    
+    u_prev_nz = u_scan
     #write rotation that has accumulated since previous iteration.
         
     #t_start_inc=GS_timing.millis()
@@ -324,7 +326,7 @@ coord = 0
 error = 0
 u_scan = 100
 u_prev = 0
-
+u_prev_nz = 0
 #loop start time
 t_start = GS_timing.millis()
 
@@ -523,6 +525,7 @@ while True:
     if initBB is not None:
         error = 0.0847 * (frame_centre - coord)
         u = update_discrete(error, 'const')
+        u_prev_nz = u
     else:
         error = 9000
         u = 0
