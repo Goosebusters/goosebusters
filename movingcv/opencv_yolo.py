@@ -20,14 +20,15 @@ import math
 #initialize the serial port to Arduino COM!
 ser = serial.Serial('COM3', 115200)
 
-def switchDirection(ser):
+def switchDirection(ser, t_switch):
     #may need to be hardcoded.
     global u_scan, u_prev_nz, T_sample_inc, error
     #u_scan = u_scan*(-1)
     u = u_prev_nz*(-1)
     if np.sign(u_scan) != np.sign(u):
         u_scan = u_scan*-1
-            
+        
+    t_begin = GS_timing.millis()
     
     #t_start_inc=GS_timing.millis()
     #write out speeds in increments. 
@@ -45,8 +46,8 @@ def switchDirection(ser):
         ser = initialize_serial(ser)
     u_prev = u
     
-    # while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
-    #     pass #do nothing 
+    while (GS_timing.millis() - t_begin < t_switch*1000):
+        pass #do nothing	
         
     return ser
     
@@ -55,7 +56,6 @@ def scanStop(ser, t_pan):
     t_scan = GS_timing.millis()
     u_prev_nz = u_scan
     #write rotation that has accumulated since previous iteration.
-        
     #t_start_inc=GS_timing.millis()
     #write out speeds in increments. 
     try:
@@ -282,8 +282,8 @@ writer = None
 
 # define the lower and upper boundaries of the "red"
 # boundaries in the HSV color space
-redLower = (0, 163, 148)
-redUpper = (48, 255, 255)
+redLower = (157, 33, 142)
+redUpper = (224, 255, 255)
 
 # initialize the two classes we care about
 BIRD_CLASS_ID = 14
@@ -380,7 +380,7 @@ while True:
         M = cv2.moments(c)
         boundaryCenter = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
         print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
-        ser = switchDirection(ser)
+        ser = switchDirection(ser, 0.1)
     # check to see if we are currently tracking an object
     if initBB is not None:
         # grab the new bounding box coordinates of the object
