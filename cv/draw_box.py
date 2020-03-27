@@ -1,3 +1,5 @@
+# Usage
+# python draw_box.py -i goose-mugshot-00001.jpg -tl 0 2 -br 100 127
 # import the necessary packages
 import argparse
 import cv2
