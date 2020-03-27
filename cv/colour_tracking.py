@@ -24,8 +24,8 @@ args = vars(ap.parse_args())
 # ball in the HSV color space, then initialize the
 # list of tracked points
 # ORANGE LUNCH BAG
-colourLower = (0, 163, 148)
-colourUpper = (48, 255, 255)
+colourLower = (157, 33, 142)
+colourUpper = (224, 255, 255)
 pts = deque(maxlen=args["buffer"])
 
 # if a video path was not supplied, grab the reference
