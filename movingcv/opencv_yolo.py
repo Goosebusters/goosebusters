@@ -58,7 +58,7 @@ def scanStop(ser, t_pan):
     #write out speeds in increments. 
     try:
         #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-        ser.write(str.encode(str(convert_degS_code2(u_scan,1.5)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(u_scan,9000)) + '\n'))
         #time.sleep(T_sample)
     except (OSError, serial.SerialException):
         #print("Serial Exception Raised")
@@ -69,11 +69,11 @@ def scanStop(ser, t_pan):
         ser.close()
         ser = initialize_serial(ser)
             
-    while (GS_timing.millis() - t_scan < t_pan):
+    while (GS_timing.millis() - t_scan < t_pan*1000):
         pass #do nothing	
         
     try:	
-        ser.write(str.encode(str(convert_degS_code2(0,1.5)) + '\n'))	
+        ser.write(str.encode(str(convert_degS_code2(0,9000)) + '\n'))	
         #time.sleep(T_sample)	
     except (OSError, serial.SerialException):	
         #print("Serial Exception Raised")	
@@ -280,8 +280,8 @@ writer = None
 
 # define the lower and upper boundaries of the "red"
 # boundaries in the HSV color space
-redLower = (81, 102, 40)
-redUpper = (253, 255, 87)
+redLower = (0, 163, 148)
+redUpper = (48, 255, 255)
 
 # initialize the two classes we care about
 BIRD_CLASS_ID = 14
@@ -377,7 +377,7 @@ while True:
         ((x, y), radius) = cv2.minEnclosingCircle(c)
         M = cv2.moments(c)
         boundaryCenter = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-        #print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
+        print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
         ser = switchDirection(ser)
     # check to see if we are currently tracking an object
     if initBB is not None:
