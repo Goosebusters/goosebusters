@@ -20,6 +20,77 @@ import math
 #initialize the serial port to Arduino COM!
 ser = serial.Serial('COM3', 115200)
 
+def switchDirection(ser):
+    #may need to be hardcoded.
+    global u_scan, u_prev, T_sample_inc, error
+    u_scan = u_scan*(-1)
+    u = u_prev*(-1)
+    increments=smooth_u(u, u_prev)
+    
+    for speed in increments:
+        u_prev = speed
+        t_start_inc=GS_timing.millis()
+        #write out speeds in increments. 
+        try:
+            #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
+            ser.write(str.encode(str(convert_degS_code(speed,error)) + '\n'))
+            #time.sleep(T_sample)
+        except (OSError, serial.SerialException):
+            #print("Serial Exception Raised")
+            ser.close()
+            ser = initialize_serial(ser)
+        except (OSError, serial.SerialTimeoutException):
+            #print("Serial Timeour Exception Raised")
+            ser.close()
+            ser = initialize_serial(ser)
+        
+        while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
+            pass #do nothing 
+        
+    return ser
+    
+def scanStop(ser, t_pan):	
+    global u_scan, u_prev, T_sample_inc	
+    t_scan = GS_timing.millis()
+    increments=smooth_u(u_scan, u_prev)
+    #write rotation that has accumulated since previous iteration.
+    for speed in increments:
+        u_prev = speed
+        t_start_inc=GS_timing.millis()
+        #write out speeds in increments. 
+        try:
+            #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
+            ser.write(str.encode(str(convert_degS_code(speed,1.5)) + '\n'))
+            #time.sleep(T_sample)
+        except (OSError, serial.SerialException):
+            #print("Serial Exception Raised")
+            ser.close()
+            ser = initialize_serial(ser)
+        except (OSError, serial.SerialTimeoutException):
+            #print("Serial Timeour Exception Raised")
+            ser.close()
+            ser = initialize_serial(ser)
+        
+        while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
+            pass #do nothing 
+            
+    while (GS_timing.millis() - t_scan < t_pan):
+        pass #do nothing	
+        
+    try:	
+        ser.write(str.encode(str(convert_degS_code(0,1.5)) + '\n'))	
+        #time.sleep(T_sample)	
+    except (OSError, serial.SerialException):	
+        #print("Serial Exception Raised")	
+        ser.close()	
+        ser = initialize_serial(ser)	
+    except (OSError, serial.SerialTimeoutException):	
+        #print("Serial Timeour Exception Raised")	
+        ser.close()	
+        ser = initialize_serial(ser)
+        
+    return ser
+
 def initialize_serial(ser):
     while (ser.isOpen()!=1):
         try:
@@ -254,7 +325,9 @@ fps = None
 #initialize goose position in frame
 coord = 0
 
-#keep track of prev u
+#store previous speed, LED value. 
+error = 0
+u_scan = 100
 u_prev = 0
 
 #loop start time
@@ -310,7 +383,7 @@ while True:
         M = cv2.moments(c)
         boundaryCenter = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
         #print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
-
+        ser = switchDirection(ser)
     # check to see if we are currently tracking an object
     if initBB is not None:
         # grab the new bounding box coordinates of the object
@@ -458,6 +531,7 @@ while True:
     else:
         error = 9000
         u = 0
+        ser = scanStop(ser, 100e-3)
     
     u_prev = u
         
