@@ -25,60 +25,55 @@ def switchDirection(ser):
     global u_scan, u_prev, T_sample_inc, error
     u_scan = u_scan*(-1)
     u = u_prev*(-1)
-    increments=smooth_u(u, u_prev)
     
-    for speed in increments:
-        u_prev = speed
-        t_start_inc=GS_timing.millis()
-        #write out speeds in increments. 
-        try:
-            #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-            ser.write(str.encode(str(convert_degS_code(speed,error)) + '\n'))
-            #time.sleep(T_sample)
-        except (OSError, serial.SerialException):
-            #print("Serial Exception Raised")
-            ser.close()
-            ser = initialize_serial(ser)
-        except (OSError, serial.SerialTimeoutException):
-            #print("Serial Timeour Exception Raised")
-            ser.close()
-            ser = initialize_serial(ser)
-        
-        while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
-            pass #do nothing 
+    
+    #t_start_inc=GS_timing.millis()
+    #write out speeds in increments. 
+    try:
+        #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(u,error)) + '\n'))
+        #time.sleep(T_sample)
+    except (OSError, serial.SerialException):
+        #print("Serial Exception Raised")
+        ser.close()
+        ser = initialize_serial(ser)
+    except (OSError, serial.SerialTimeoutException):
+        #print("Serial Timeour Exception Raised")
+        ser.close()
+        ser = initialize_serial(ser)
+    u_prev = u
+    
+    # while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
+    #     pass #do nothing 
         
     return ser
     
 def scanStop(ser, t_pan):	
     global u_scan, u_prev, T_sample_inc	
     t_scan = GS_timing.millis()
-    increments=smooth_u(u_scan, u_prev)
+    
     #write rotation that has accumulated since previous iteration.
-    for speed in increments:
-        u_prev = speed
-        t_start_inc=GS_timing.millis()
-        #write out speeds in increments. 
-        try:
-            #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-            ser.write(str.encode(str(convert_degS_code(speed,1.5)) + '\n'))
-            #time.sleep(T_sample)
-        except (OSError, serial.SerialException):
-            #print("Serial Exception Raised")
-            ser.close()
-            ser = initialize_serial(ser)
-        except (OSError, serial.SerialTimeoutException):
-            #print("Serial Timeour Exception Raised")
-            ser.close()
-            ser = initialize_serial(ser)
         
-        while (GS_timing.millis() - t_start_inc < T_sample_inc*1000):
-            pass #do nothing 
+    #t_start_inc=GS_timing.millis()
+    #write out speeds in increments. 
+    try:
+        #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(u_scan,1.5)) + '\n'))
+        #time.sleep(T_sample)
+    except (OSError, serial.SerialException):
+        #print("Serial Exception Raised")
+        ser.close()
+        ser = initialize_serial(ser)
+    except (OSError, serial.SerialTimeoutException):
+        #print("Serial Timeour Exception Raised")
+        ser.close()
+        ser = initialize_serial(ser)
             
     while (GS_timing.millis() - t_scan < t_pan):
         pass #do nothing	
         
     try:	
-        ser.write(str.encode(str(convert_degS_code(0,1.5)) + '\n'))	
+        ser.write(str.encode(str(convert_degS_code2(0,1.5)) + '\n'))	
         #time.sleep(T_sample)	
     except (OSError, serial.SerialException):	
         #print("Serial Exception Raised")	
@@ -88,7 +83,7 @@ def scanStop(ser, t_pan):
         #print("Serial Timeour Exception Raised")	
         ser.close()	
         ser = initialize_serial(ser)
-        
+    u_prev = 0
     return ser
 
 def initialize_serial(ser):
