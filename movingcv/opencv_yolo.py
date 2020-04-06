@@ -20,21 +20,13 @@ import math
 #initialize the serial port to Arduino COM!
 ser = serial.Serial('COM3', 115200)
 
-def switchDirection(ser, t_switch):
-    #may need to be hardcoded.
-    global u_scan, u_prev_nz, T_sample_inc, error
-    #u_scan = u_scan*(-1)
-    u = u_prev_nz*(-1)
-    if np.sign(u_scan) != np.sign(u):
-        u_scan = u_scan*-1
-        
+def switchDirection(ser, u_prev, t_switch):
+    u_new = u_prev*(-1)        
     t_begin = GS_timing.millis()
     
-    #t_start_inc=GS_timing.millis()
-    #write out speeds in increments. 
     try:
         #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-        ser.write(str.encode(str(convert_degS_code2(u,error)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(u_new,9000)) + '\n'))
         #time.sleep(T_sample)
     except (OSError, serial.SerialException):
         #print("Serial Exception Raised")
@@ -44,23 +36,28 @@ def switchDirection(ser, t_switch):
         #print("Serial Timeour Exception Raised")
         ser.close()
         ser = initialize_serial(ser)
-    u_prev = u
     
     while (GS_timing.millis() - t_begin < t_switch*1000):
         pass #do nothing	
         
-    return ser
+    try:
+        ser.write(str.encode(str(convert_degS_code2(0,9000)) + '\n'))
+    except (OSError, serial.SerialException):
+        ser.close()
+        ser = initialize_serial(ser)
+    except (OSError, serial.SerialTimeoutException):
+        ser.close()
+        ser = initialize_serial(ser)
+        
+    return ser, u_new
     
-def scanStop(ser, t_pan):	
-    global u_scan, u_prev, u_prev_nz, T_sample
-    t_scan = GS_timing.millis()
-    u_prev_nz = u_scan
-    #write rotation that has accumulated since previous iteration.
-    #t_start_inc=GS_timing.millis()
-    #write out speeds in increments. 
+def scanStop(ser, u_prev, t_pan):	
+    #u_prev is speed e (-250, 250)
+    t_begin = GS_timing.millis()
+    
     try:
         #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-        ser.write(str.encode(str(convert_degS_code2(u_scan,9000)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(np.copysign(250, u_prev),9000)) + '\n'))
         #time.sleep(T_sample)
     except (OSError, serial.SerialException):
         #print("Serial Exception Raised")
@@ -71,22 +68,11 @@ def scanStop(ser, t_pan):
         ser.close()
         ser = initialize_serial(ser)
             
-    while (GS_timing.millis() - t_scan < t_pan*1000):
+    #wait until camera has rotated through large enough angle. 
+    while (GS_timing.millis() - t_begin < t_pan*1000):
         pass #do nothing	
-        
-    try:	
-        ser.write(str.encode(str(convert_degS_code2(0,9000)) + '\n'))	
-        #time.sleep(T_sample)	
-    except (OSError, serial.SerialException):	
-        #print("Serial Exception Raised")	
-        ser.close()	
-        ser = initialize_serial(ser)	
-    except (OSError, serial.SerialTimeoutException):	
-        #print("Serial Timeour Exception Raised")	
-        ser.close()	
-        ser = initialize_serial(ser)
-    u_prev = 0
-    return ser
+    
+    return ser, u_prev
 
 def initialize_serial(ser):
     while (ser.isOpen()!=1):
@@ -324,11 +310,12 @@ coord = 0
 
 #store previous speed, LED value. 
 error = 0
-u_scan = 100
-u_prev = 0
 u_prev_nz = 0
 #loop start time
 t_start = GS_timing.millis()
+#ADJUST AS NECESSARY
+tScan = 0.1
+tReverse = 0.3
 
 # loop over frames from the video stream
 while True:
@@ -380,7 +367,7 @@ while True:
         M = cv2.moments(c)
         boundaryCenter = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
         print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
-        ser = switchDirection(ser, 0.1)
+        ser, u_prev_nz = reverseDirection(ser, u_prev_nz, tReverse)
     # check to see if we are currently tracking an object
     if initBB is not None:
         # grab the new bounding box coordinates of the object
@@ -528,10 +515,9 @@ while True:
         u_prev_nz = u
     else:
         error = 9000
+        ser,u_prev_nz = scanStop(ser, u_prev_nz, tScan)
         u = 0
-        ser = scanStop(ser, 100e-3)
-    
-    u_prev = u
+        
         
     print('u: '+str(u)+'; error: '+str(error)+'; arduino: '+str(convert_degS_code2(u,error)))
     
