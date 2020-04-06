@@ -20,7 +20,8 @@ import math
 #initialize the serial port to Arduino COM!
 ser = serial.Serial('COM3', 115200)
 
-def switchDirection(ser, u_prev, t_switch):
+def reverseDirection(ser, u_prev, t_switch):
+    print('This is reverseDirection: '+str(u_prev))
     u_new = u_prev*(-1)        
     t_begin = GS_timing.millis()
     
@@ -51,13 +52,14 @@ def switchDirection(ser, u_prev, t_switch):
         
     return ser, u_new
     
-def scanStop(ser, u_prev, t_pan):	
+def scanStop(ser, u_prev, t_pan):
+    print('This is scanStop: '+str(u_prev))	
     #u_prev is speed e (-250, 250)
     t_begin = GS_timing.millis()
     
     try:
         #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-        ser.write(str.encode(str(convert_degS_code2(np.copysign(250, u_prev),9000)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(np.copysign(60, u_prev),9000)) + '\n'))
         #time.sleep(T_sample)
     except (OSError, serial.SerialException):
         #print("Serial Exception Raised")
@@ -70,7 +72,16 @@ def scanStop(ser, u_prev, t_pan):
             
     #wait until camera has rotated through large enough angle. 
     while (GS_timing.millis() - t_begin < t_pan*1000):
-        pass #do nothing	
+        pass #do nothing
+        
+    try:
+        ser.write(str.encode(str(convert_degS_code2(0,9000)) + '\n'))
+    except (OSError, serial.SerialException):
+        ser.close()
+        ser = initialize_serial(ser)
+    except (OSError, serial.SerialTimeoutException):
+        ser.close()
+        ser = initialize_serial(ser)
     
     return ser, u_prev
 
@@ -102,7 +113,7 @@ def convert_degS_code2(degS, error):
     #modified
     #input is radial speed e (-250,250)deg/s
     #output is digital code between (65, 125) OR (135, 195)
-    return int(degS*(25/250) + 95 + 70*np.heaviside(3-abs(error), 0))
+    return int(degS*(25/250) + 94 + 70*np.heaviside(3-abs(error), 0))
 
 
 '''control init'''
@@ -310,7 +321,7 @@ coord = 0
 
 #store previous speed, LED value. 
 error = 0
-u_prev_nz = 0
+u_prev_nz = 100
 #loop start time
 t_start = GS_timing.millis()
 #ADJUST AS NECESSARY
@@ -521,7 +532,7 @@ while True:
         
     print('u: '+str(u)+'; error: '+str(error)+'; arduino: '+str(convert_degS_code2(u,error)))
     
-    #wait until at least T_sample seconds have elapsed before next loop
+    #wait until at least T_sample seconds have elapsed before next loop ( doesnt affect detection mode)
     while (GS_timing.millis() - t_start < T_sample * 1000):
         pass
         
