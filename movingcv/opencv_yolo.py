@@ -118,7 +118,7 @@ def convert_degS_code(degS, error):
 def convert_degS_code2(degS, error):
     # modified
     # input is radial speed e (-250,250)deg/s
-    # output is digital code between (65, 125) OR (135, 195)
+    # output is digital code between (64, 124) OR (134, 194)
     return int(degS*(25/250) + 94 + 70*np.heaviside(3-abs(error), 0))
 
 
@@ -173,6 +173,7 @@ def update_discrete(error, type):
 
     if type == 'const':
         u = -0.5/T_sample * e
+        #use -0.5 with t_sample = 0.05
 
     elif type == 'exo':
         print("exo Not implemented")
@@ -256,6 +257,7 @@ ap.add_argument("--threshold", type=float, default=0.3,
 args = vars(ap.parse_args())
 
 # load the COCO class labels our YOLO model was trained on
+#labelsPath = os.path.sep.join([args["yolo"], "coco.names"])
 labelsPath = os.path.sep.join([args["yolo"], "obj.names"])
 LABELS = open(labelsPath).read().strip().split("\n")
 
@@ -265,6 +267,8 @@ COLORS = np.random.randint(0, 255, size=(2, 3),
                            dtype="uint8")
 
 # derive the paths to the YOLO weights and model configuration
+#weightsPath = os.path.sep.join([args["yolo"], "yolov3.weights"])
+#configPath = os.path.sep.join([args["yolo"], "yolov3.cfg"])
 weightsPath = os.path.sep.join([args["yolo"], "yolov3_custom.weights"])
 configPath = os.path.sep.join([args["yolo"], "yolov3_custom.cfg"])
 
@@ -292,8 +296,9 @@ redLower = (157, 33, 142)
 redUpper = (224, 255, 255)
 
 # initialize the two classes we care about
-PERSON_CLASS_ID = 0
-GOOSE_CLASS_ID = 1
+BIRD_CLASS_ID = 14
+PERSON_CLASS_ID = 1
+GOOSE_CLASS_ID = 0
 
 # initialize a dictionary that maps strings to their corresponding
 # OpenCV object tracker implementations
@@ -337,6 +342,8 @@ t_start = GS_timing.millis()
 tScan = 0.1
 tReverse = 0.3
 
+person_detected = False
+
 # loop over frames from the video stream
 while True:
 
@@ -370,6 +377,7 @@ while True:
     mask = cv2.erode(mask, None, iterations=2)
     mask = cv2.dilate(mask, None, iterations=2)
 
+    ''' This is for color detection
     # find contours in the mask and initialize the current
     # (x, y) center of the red boundary
     cnts = cv2.findContours(
@@ -388,6 +396,22 @@ while True:
         boundaryCenter = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
         print(f"DANGER: RED BOUNDARY DETECTED AT {boundaryCenter}")
         ser, u_prev_nz = reverseDirection(ser, u_prev_nz, tReverse)
+    '''
+    '''
+    #checkerboard dimensions
+    a, b = 9, 6 
+    gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+
+    # Find the chess board corners
+    ret, corners = cv2.findChessboardCorners(gray, (a,b),None)
+
+    # If found checkerboard, reverse direction
+    if ret == True:
+        print('Found checkerboard')
+        ser, u_prev_nz = reverseDirection(ser, u_prev_nz, tReverse)
+    
+    person_detected = False
+    '''
     # check to see if we are currently tracking an object
     if initBB is not None:
         # grab the new bounding box coordinates of the object
@@ -422,7 +446,7 @@ while True:
 
         else:
             initBB = None
-            print('Nothing detected.')
+            print('Nothing detected')
             coord = 0
             error = 9000
             u = 0
@@ -509,8 +533,12 @@ while True:
                 text = "{}: {:.4f}".format(LABELS[classIDs[i]], confidences[i])
                 cv2.putText(frame, text, (x, y - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
-                if (classIDs[i] == GOOSE_CLASS_ID):
+                
+                if (classIDs[i] == PERSON_CLASS_ID):
+                    print("Human detected!\n")
+                    person_detected = True
+                elif (classIDs[i] == BIRD_CLASS_ID or classIDs[i] == GOOSE_CLASS_ID):
+                    print("Goose detected!\n")
                     initBB = tuple(boxes[i])
 
                     # start OpenCV object tracker using the supplied bounding box
@@ -519,31 +547,39 @@ while True:
                     tracker.init(frame, initBB)
                     fps = FPS().start()
                 else:
-                    print("Human detected!\n")
+                    pass # neither person nor goose
+                    
 
-        # if the `q` key was pressed, break from the loop
+    # if the `q` key was pressed, break from the loop
     if key == ord("q"):
         break
 
     '''Control'''
 
-    # tracking mode
+    # if we detect goose
     if initBB is not None:
         error = 0.0847 * (frame_centre - coord)
         u = update_discrete(error, 'const')
         u_prev_nz = u
+    
+    # if no goose
     else:
         error = 9000
         ser, u_prev_nz = scanStop(ser, u_prev_nz, tScan)
         u = 0
 
+    # if person detected
+    if person_detected:
+        error = 9000
+
+    # print info
     print('u: '+str(u)+'; error: '+str(error) +
           '; arduino: '+str(convert_degS_code2(u, error)))
 
-    # wait until at least T_sample seconds have elapsed before next loop ( doesnt affect detection mode)
+    # wait until at least T_sample seconds have elapsed before next loop (doesnt affect detection mode)
     while (GS_timing.millis() - t_start < T_sample * 1000):
         pass
-
+    
     # write control signal u (desired speed)
     try:
         ser.write(str.encode(str(convert_degS_code2(u, error)) + '\n'))
