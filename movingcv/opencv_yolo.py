@@ -1,6 +1,6 @@
 # USAGE
-# python opencv_yolo.py --yolo yolo-coco
-# python opencv_yolo.py --video dashcam_boston.mp4 --tracker csrt --yolo yolo-coco
+# python opencv_yolo.py --yolo yolo-custom
+# python opencv_yolo.py --video dashcam_boston.mp4 --tracker csrt --yolo yolo-custom
 
 # import the necessary packages
 import os
@@ -16,19 +16,20 @@ import serial
 import math
 
 '''Some useful functions'''
-        
-#initialize the serial port to Arduino COM!
+
+# initialize the serial port to Arduino COM!
 ser = serial.Serial('COM3', 115200)
+
 
 def reverseDirection(ser, u_prev, t_switch):
     print('This is reverseDirection: '+str(u_prev))
-    u_new = u_prev*(-1)        
+    u_new = u_prev*(-1)
     t_begin = GS_timing.millis()
-    
+
     try:
         #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-        ser.write(str.encode(str(convert_degS_code2(u_new,9000)) + '\n'))
-        #time.sleep(T_sample)
+        ser.write(str.encode(str(convert_degS_code2(u_new, 9000)) + '\n'))
+        # time.sleep(T_sample)
     except (OSError, serial.SerialException):
         #print("Serial Exception Raised")
         ser.close()
@@ -37,30 +38,32 @@ def reverseDirection(ser, u_prev, t_switch):
         #print("Serial Timeour Exception Raised")
         ser.close()
         ser = initialize_serial(ser)
-    
+
     while (GS_timing.millis() - t_begin < t_switch*1000):
-        pass #do nothing	
-        
+        pass  # do nothing
+
     try:
-        ser.write(str.encode(str(convert_degS_code2(0,9000)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(0, 9000)) + '\n'))
     except (OSError, serial.SerialException):
         ser.close()
         ser = initialize_serial(ser)
     except (OSError, serial.SerialTimeoutException):
         ser.close()
         ser = initialize_serial(ser)
-        
+
     return ser, u_new
-    
+
+
 def scanStop(ser, u_prev, t_pan):
-    print('This is scanStop: '+str(u_prev))	
-    #u_prev is speed e (-250, 250)
+    print('This is scanStop: '+str(u_prev))
+    # u_prev is speed e (-250, 250)
     t_begin = GS_timing.millis()
-    
+
     try:
         #print("Writing: ", str.encode(str(convert_degS_code(speed,error)) + '\n'))
-        ser.write(str.encode(str(convert_degS_code2(np.copysign(60, u_prev),9000)) + '\n'))
-        #time.sleep(T_sample)
+        ser.write(str.encode(str(convert_degS_code2(
+            np.copysign(60, u_prev), 9000)) + '\n'))
+        # time.sleep(T_sample)
     except (OSError, serial.SerialException):
         #print("Serial Exception Raised")
         ser.close()
@@ -69,24 +72,25 @@ def scanStop(ser, u_prev, t_pan):
         #print("Serial Timeour Exception Raised")
         ser.close()
         ser = initialize_serial(ser)
-            
-    #wait until camera has rotated through large enough angle. 
+
+    # wait until camera has rotated through large enough angle.
     while (GS_timing.millis() - t_begin < t_pan*1000):
-        pass #do nothing
-        
+        pass  # do nothing
+
     try:
-        ser.write(str.encode(str(convert_degS_code2(0,9000)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(0, 9000)) + '\n'))
     except (OSError, serial.SerialException):
         ser.close()
         ser = initialize_serial(ser)
     except (OSError, serial.SerialTimeoutException):
         ser.close()
         ser = initialize_serial(ser)
-    
+
     return ser, u_prev
 
+
 def initialize_serial(ser):
-    while (ser.isOpen()!=1):
+    while (ser.isOpen() != 1):
         try:
             ser.close()
             ser = serial.Serial('COM3', 115200)
@@ -98,48 +102,50 @@ def initialize_serial(ser):
             #print("Timeout exception raised in initialize_serial()")
     return ser
 
+
 def convert_degS_code(degS, error):
-    #input is radial speed e (-250,250)deg/s
-    #output is digital code between (65, 125) OR (135, 195)
-    if degS<=-1:
+    # input is radial speed e (-250,250)deg/s
+    # output is digital code between (65, 125) OR (135, 195)
+    if degS <= -1:
         return int(degS*(25/250) + 90 + 70*np.heaviside(1-abs(error), 0))
-    elif degS>=1:
+    elif degS >= 1:
         return int(degS*(25/250) + 100 + 70*np.heaviside(1-abs(error), 0))
     else:
-        #map rotation code less than 1 degS to 0. 
+        # map rotation code less than 1 degS to 0.
         return 95
-        
+
+
 def convert_degS_code2(degS, error):
-    #modified
-    #input is radial speed e (-250,250)deg/s
-    #output is digital code between (65, 125) OR (135, 195)
+    # modified
+    # input is radial speed e (-250,250)deg/s
+    # output is digital code between (65, 125) OR (135, 195)
     return int(degS*(25/250) + 94 + 70*np.heaviside(3-abs(error), 0))
 
 
 '''control init'''
-#sample time
+# sample time
 T_sample = 0.05
 T = 0
 
-#B matrix
+# B matrix
 B = 1
 
-#C matrix
+# C matrix
 C = 1
 
-#controller gain; error
+# controller gain; error
 K1 = -20
 
-#controller gain; goose
+# controller gain; goose
 K2 = [0, 1]
 
-#state observer gain
+# state observer gain
 L1 = [[-60], [-1600]]
 
-#exosystem observer gain
+# exosystem observer gain
 L2 = -20
 
-#exosystem
+# exosystem
 S = [[0, 1], [0, 0]]
 
 w1_hat = 0
@@ -147,29 +153,30 @@ w2_hat = 0
 
 R = [1, 0]
 
-#observer state
+# observer state
 x_hat = 0
 
-#error estimate
+# error estimate
 e_hat = 0
 
-#controller output
+# controller output
 u = 0
 
-#integral
+# integral
 u_int = 0
+
 
 def update_discrete(error, type):
     global T, u, u_int, w1_hat, w2_hat, x_hat
     T += T_sample
     e = error
-    
+
     if type == 'const':
         u = -0.5/T_sample * e
-        
+
     elif type == 'exo':
         print("exo Not implemented")
-        
+
     elif type == 'exo2':
         print("exo2 Not implemented")
 
@@ -178,57 +185,59 @@ def update_discrete(error, type):
 
     return u
 
+
 def update(error, type):
     global T, u, u_int, w1_hat, w2_hat, x_hat
-    
+
     T += T_sample
     e = error
-    
+
     if type == 'const':
-        
+
         u = K1 * e
-    
+
     elif type == 'exo':
-        
+
         u_int += u*T_sample
-        
+
         e_hat = C*B*u_int - (R[0]*w1_hat + R[1]*w1_hat)
-        
+
         w1_hat_dot = S[0][0]*w1_hat + S[0][1]*w2_hat + L1[0][0]*(e-e_hat)
         w2_hat_dot = S[1][0]*w1_hat + S[0][1]*w2_hat + L1[1][0]*(e-e_hat)
-        
+
         w1_hat += w1_hat_dot*T_sample
         w2_hat += w2_hat_dot*T_sample
-        
+
         u = K1*e + K2[0]*w1_hat + K2[1]*w2_hat
-        
+
     elif type == 'exo2':
-        
+
         e_hat = C*x_hat - (R[0]*w1_hat + R[1]*w1_hat)
-        
+
         w1_hat_dot = S[0][0]*w1_hat + S[0][1]*w2_hat + L1[0][0]*(e-e_hat)
         w2_hat_dot = S[1][0]*w1_hat + S[0][1]*w2_hat + L1[1][0]*(e-e_hat)
-        
+
         x_hat_dot = B*u + L2*(e-e_hat)
-        
+
         w1_hat += w1_hat_dot*T_sample
         w2_hat += w2_hat_dot*T_sample
-        
+
         x_hat += x_hat_dot*T_sample
-        
+
         u = K1*e + K2[0]*w1_hat + K2[1]*w2_hat
-        
+
     else:
         print('Invalid type')
         return
-    
-    #saturation at 0.7 rot/s. u given in deg/s
+
+    # saturation at 0.7 rot/s. u given in deg/s
     if abs(u) > 0.01*360:
         u = 0.01*360 * u/abs(u)
     if abs(u) < 10:
         u = 0
-    
+
     return u
+
 
 '''cv starts here'''
 
@@ -240,14 +249,14 @@ ap.add_argument("-t", "--tracker", type=str, default="kcf",
                 help="OpenCV object tracker type")
 ap.add_argument("-y", "--yolo", required=True,
                 help="base path to YOLO directory")
-ap.add_argument("-c", "--confidence", type=float, default=0.5,
+ap.add_argument("-c", "--confidence", type=float, default=0.25,
                 help="minimum probability to filter weak detections")
 ap.add_argument("--threshold", type=float, default=0.3,
                 help="threshold when applyong non-maxima suppression")
 args = vars(ap.parse_args())
 
 # load the COCO class labels our YOLO model was trained on
-labelsPath = os.path.sep.join([args["yolo"], "coco.names"])
+labelsPath = os.path.sep.join([args["yolo"], "obj.names"])
 LABELS = open(labelsPath).read().strip().split("\n")
 
 # initialize a list of colors to represent TWO possible class labels
@@ -256,8 +265,8 @@ COLORS = np.random.randint(0, 255, size=(2, 3),
                            dtype="uint8")
 
 # derive the paths to the YOLO weights and model configuration
-weightsPath = os.path.sep.join([args["yolo"], "yolov3.weights"])
-configPath = os.path.sep.join([args["yolo"], "yolov3.cfg"])
+weightsPath = os.path.sep.join([args["yolo"], "yolov3_custom.weights"])
+configPath = os.path.sep.join([args["yolo"], "yolov3_custom.cfg"])
 
 # load our YOLO object detector trained on COCO dataset (80 classes)
 # and determine only the *output* layer names that we need from YOLO
@@ -283,8 +292,8 @@ redLower = (157, 33, 142)
 redUpper = (224, 255, 255)
 
 # initialize the two classes we care about
-BIRD_CLASS_ID = 14
 PERSON_CLASS_ID = 0
+GOOSE_CLASS_ID = 1
 
 # initialize a dictionary that maps strings to their corresponding
 # OpenCV object tracker implementations
@@ -316,22 +325,21 @@ else:
 # initialize the FPS throughput estimator
 fps = None
 
-#initialize goose position in frame
+# initialize goose position in frame
 coord = 0
 
-#store previous speed, LED value. 
+# store previous speed, LED value.
 error = 0
 u_prev_nz = 100
-#loop start time
+# loop start time
 t_start = GS_timing.millis()
-#ADJUST AS NECESSARY
+# ADJUST AS NECESSARY
 tScan = 0.1
 tReverse = 0.3
 
 # loop over frames from the video stream
 while True:
 
-    
     # grab the current frame, then handle if we are using a
     # VideoStream or VideoCapture object
     frame = vs.read()
@@ -347,8 +355,8 @@ while True:
     frame = imutils.rotate_bound(frame, 90)
     frame = imutils.resize(frame, height=500)
     (H, W) = frame.shape[:2]
-    
-    #get x coordinate of frame centre
+
+    # get x coordinate of frame centre
     frame_centre = W/2
 
     # blur the frame and convert it to the HSV color space
@@ -356,15 +364,16 @@ while True:
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
     # construct a mask for the color "red", then perform
-	# a series of dilations and erosions to remove any small
-	# blobs left in the mask
+    # a series of dilations and erosions to remove any small
+    # blobs left in the mask
     mask = cv2.inRange(hsv, redLower, redUpper)
     mask = cv2.erode(mask, None, iterations=2)
     mask = cv2.dilate(mask, None, iterations=2)
 
     # find contours in the mask and initialize the current
-	# (x, y) center of the red boundary
-    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # (x, y) center of the red boundary
+    cnts = cv2.findContours(
+        mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cnts = imutils.grab_contours(cnts)
     boundaryCenter = None
 
@@ -389,8 +398,8 @@ while True:
             (x, y, w, h) = [int(v) for v in box]
             cv2.rectangle(frame, (x, y), (x + w, y + h),
                           (0, 255, 0), 2)
-                          
-            #get x coord of goose
+
+            # get x coord of goose
             coord = x + w/2
 
             # update the FPS counter
@@ -417,16 +426,15 @@ while True:
             coord = 0
             error = 9000
             u = 0
-            #write control signal u (desired speed) 
+            # write control signal u (desired speed)
             try:
-                ser.write(str.encode(str(convert_degS_code2(u,error)) + '\n'))
+                ser.write(str.encode(str(convert_degS_code2(u, error)) + '\n'))
             except (OSError, serial.SerialException):
                 ser.close()
                 ser = initialize_serial(ser)
             except (OSError, serial.SerialTimeoutException):
                 ser.close()
                 ser = initialize_serial(ser)
-           
 
     # show the output frame
     cv2.imshow("Frame", frame)
@@ -461,7 +469,7 @@ while True:
 
                 # filter out weak predictions by ensuring the detected
                 # probability is greater than the minimum probability
-                if confidence > args["confidence"] and classID in {BIRD_CLASS_ID, PERSON_CLASS_ID}:
+                if confidence > args["confidence"]:
                     # scale the bounding box coordinates back relative to
                     # the size of the image, keeping in mind that YOLO
                     # actually returns the center (x, y)-coordinates of
@@ -502,7 +510,7 @@ while True:
                 cv2.putText(frame, text, (x, y - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-                if (classIDs[i] == BIRD_CLASS_ID):
+                if (classIDs[i] == GOOSE_CLASS_ID):
                     initBB = tuple(boxes[i])
 
                     # start OpenCV object tracker using the supplied bounding box
@@ -518,35 +526,35 @@ while True:
         break
 
     '''Control'''
-    
-    #tracking mode
+
+    # tracking mode
     if initBB is not None:
         error = 0.0847 * (frame_centre - coord)
         u = update_discrete(error, 'const')
         u_prev_nz = u
     else:
         error = 9000
-        ser,u_prev_nz = scanStop(ser, u_prev_nz, tScan)
+        ser, u_prev_nz = scanStop(ser, u_prev_nz, tScan)
         u = 0
-        
-        
-    print('u: '+str(u)+'; error: '+str(error)+'; arduino: '+str(convert_degS_code2(u,error)))
-    
-    #wait until at least T_sample seconds have elapsed before next loop ( doesnt affect detection mode)
+
+    print('u: '+str(u)+'; error: '+str(error) +
+          '; arduino: '+str(convert_degS_code2(u, error)))
+
+    # wait until at least T_sample seconds have elapsed before next loop ( doesnt affect detection mode)
     while (GS_timing.millis() - t_start < T_sample * 1000):
         pass
-        
-    #write control signal u (desired speed) 
+
+    # write control signal u (desired speed)
     try:
-        ser.write(str.encode(str(convert_degS_code2(u,error)) + '\n'))
+        ser.write(str.encode(str(convert_degS_code2(u, error)) + '\n'))
     except (OSError, serial.SerialException):
         ser.close()
         ser = initialize_serial(ser)
     except (OSError, serial.SerialTimeoutException):
         ser.close()
         ser = initialize_serial(ser)
-        
-    #loop start time
+
+    # loop start time
     t_start = GS_timing.millis()
 
 
