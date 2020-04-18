@@ -292,8 +292,8 @@ redLower = (157, 33, 142)
 redUpper = (224, 255, 255)
 
 # initialize the two classes we care about
-PERSON_CLASS_ID = 0
-GOOSE_CLASS_ID = 1
+GOOSE_CLASS_ID = 0
+PERSON_CLASS_ID = 1
 
 # initialize a dictionary that maps strings to their corresponding
 # OpenCV object tracker implementations
